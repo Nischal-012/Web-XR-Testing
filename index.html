@@ -111,6 +111,9 @@
       companyName: "YourCompanyName",
       productName: "YourProductName",
       productVersion: "0.0.1",
+      /* true: internal WebGL resolution tracks the displayed canvas (sharp on retina). Setting false makes the game
+         render at a small fixed buffer and the browser stretches it → blocky / soft look on phones.
+         Stack overflow was caused by dispatching a *synthetic* "resize" from a resize handler — do not do that; native resize is fine. */
       matchWebGLToCanvasSize: true,
       autoSyncPersistentDataPath: true,
     };
@@ -172,8 +175,8 @@
             console.warn("[VertexFormMobileDetect] SendMessage failed — WebGLInputBridge / WebGLMobileControlBridge:", e);
           }
         }
+        /* Single batch after load; duplicate delayed calls could fight Unity init on slow phones. */
         sendMobileToUnity();
-        setTimeout(sendMobileToUnity, 400);
       }).catch(function (message) {
         alert(message);
       });
