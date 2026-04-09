@@ -1,94 +1,197 @@
 <!DOCTYPE html>
 <html lang="en-us">
-  <head>
-    <meta charset="utf-8">
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Unity WebGL Player | YourProductName</title>
-    <meta name="description" content="">
-    <link rel="shortcut icon" href="TemplateData/favicon.ico">
-    <link rel="stylesheet" href="TemplateData/style.css">
-  </head>
-  <body>
-    <div id="unity-container">
-      <div id="unity-canvas-container">
-        <canvas id="unity-canvas" style="width: 100%; height: 100%;"></canvas>
-      </div>
-      <div id="unity-loading-bar">
-        <div id="unity-logo"></div>
-        <div id="unity-progress-bar-empty">
-          <div id="unity-progress-bar-full"></div>
-        </div>
-      </div>
-      <div id="unity-footer">
-        <div id="unity-webgl-logo"></div>
-        <button id="entervr" value="Enter VR" disabled>VR</button>
-        <button id="enterar" value="Enter AR" disabled>AR</button>
-        <div id="unity-webxr-link">Using <a href="https://github.com/De-Panther/unity-webxr-export" target="_blank" title="WebXR Export">WebXR Export</a></div>
-        <div id="unity-build-title">YourProductName</div>
-      </div>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <!-- width=device-width + safe-area; rotating the device reflows the layout; Unity uses matchWebGLToCanvasSize to match canvas to this size -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>YourProductName</title>
+  <style>
+    * { box-sizing: border-box; }
+    html {
+      width: 100%;
+      height: 100%;
+      height: 100dvh;
+      margin: 0;
+      padding: 0;
+      background: ##222222;
+      overflow: hidden;
+      /* iOS Safari dynamic toolbar */
+      height: -webkit-fill-available;
+    }
+    body {
+      width: 100%;
+      height: 100%;
+      height: 100dvh;
+      min-height: 100%;
+      margin: 0;
+      padding: 0;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      background: ##222222;
+      overflow: hidden;
+      position: fixed;
+      inset: 0;
+      height: -webkit-fill-available;
+    }
+    #unity-container {
+      position: absolute;
+      left: 0; top: 0; right: 0; bottom: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #unity-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: ##222222;
+      outline: none;
+      touch-action: none;
+    }
+    #unity-loading-bar {
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      width: 240px; text-align: center; font-family: system-ui, sans-serif; color: #bbb; font-size: 14px;
+      z-index: 2;
+    }
+    #unity-progress-bar-empty { width: 100%; height: 12px; margin-top: 8px; background: #333; border-radius: 4px; overflow: hidden; }
+    #unity-progress-bar-full { width: 0%; height: 100%; background: #8bc; transition: width 0.1s; }
+    /* Fullscreen: must follow a user tap/click (browser policy). Uses Unity's SetFullscreen. */
+    #vertexform-fullscreen-btn {
+      display: none;
+      position: fixed;
+      right: max(12px, env(safe-area-inset-right));
+      bottom: max(12px, env(safe-area-inset-bottom));
+      z-index: 10000;
+      padding: 12px 16px;
+      font-size: 15px;
+      font-family: system-ui, -apple-system, sans-serif;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(0,0,0,0.55);
+      color: #eee;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+    }
+    #vertexform-fullscreen-btn:active { background: rgba(0,0,0,0.75); }
+  </style>
+</head>
+<body>
+  <div id="unity-container">
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
+    <div id="unity-loading-bar">
+      <div>Loading YourProductName...</div>
+      <div id="unity-progress-bar-empty"><div id="unity-progress-bar-full"></div></div>
     </div>
-    <script>
-      var buildUrl = "Build";
-      var loaderUrl = buildUrl + "/WebGL.loader.js";
-      var config = {
-        dataUrl: buildUrl + "/WebGL.data",
-        frameworkUrl: buildUrl + "/WebGL.framework.js",
-        codeUrl: buildUrl + "/WebGL.wasm",
-        streamingAssetsUrl: "StreamingAssets",
-        companyName: "YourCompanyName",
-        productName: "YourProductName",
-        productVersion: "0.0.1",
+  </div>
+  <button id="vertexform-fullscreen-btn" type="button" aria-label="Toggle fullscreen">Fullscreen</button>
+  <script>
+    function vertexFormIsMobileBrowser() {
+      var ua = navigator.userAgent || navigator.vendor || window.opera || "";
+      if (/android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/i.test(ua))
+        return true;
+      if (typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches)
+        return true;
+      if (typeof navigator.maxTouchPoints === "number" && navigator.maxTouchPoints > 2)
+        return true;
+      return false;
+    }
+
+    var buildUrl = "Build";
+    var loaderUrl = buildUrl + "/WebGL.loader.js";
+    var config = {
+      dataUrl: buildUrl + "/WebGL.data.unityweb",
+      frameworkUrl: buildUrl + "/WebGL.framework.js.unityweb",
+      codeUrl: buildUrl + "/WebGL.wasm.unityweb",
+      streamingAssetsUrl: "StreamingAssets",
+      companyName: "YourCompanyName",
+      productName: "YourProductName",
+      productVersion: "0.0.1",
+      matchWebGLToCanvasSize: true,
+      autoSyncPersistentDataPath: true,
+    };
+
+    var canvas = document.querySelector("#unity-canvas");
+    var loadingBar = document.querySelector("#unity-loading-bar");
+    var progressBarFull = document.querySelector("#unity-progress-bar-full");
+    var fsBtn = document.querySelector("#vertexform-fullscreen-btn");
+    var unityInstanceRef = null;
+
+    function vertexFormUpdateFullscreenButtonLabel() {
+      if (!fsBtn) return;
+      var el = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
+      fsBtn.textContent = el ? "Exit fullscreen" : "Fullscreen";
+    }
+
+    function vertexFormSetupFullscreenButton(unityInstance) {
+      unityInstanceRef = unityInstance;
+      if (!fsBtn) return;
+      fsBtn.style.display = "block";
+      vertexFormUpdateFullscreenButtonLabel();
+      fsBtn.onclick = function (ev) {
+        ev.preventDefault();
+        if (!unityInstanceRef || typeof unityInstanceRef.SetFullscreen !== "function") return;
+        var el = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
+        try {
+          unityInstanceRef.SetFullscreen(el ? 0 : 1);
+        } catch (err) {
+          console.warn("[VertexFormMobileDetect] SetFullscreen failed (try user gesture / iOS limits):", err);
+        }
+        setTimeout(vertexFormUpdateFullscreenButtonLabel, 100);
       };
+      document.addEventListener("fullscreenchange", vertexFormUpdateFullscreenButtonLabel);
+      document.addEventListener("webkitfullscreenchange", vertexFormUpdateFullscreenButtonLabel);
+    }
 
-      var container = document.querySelector("#unity-container");
-      var canvas = document.querySelector("#unity-canvas");
-      var canvasContainer = document.querySelector("#unity-canvas-container");
-      var loadingBar = document.querySelector("#unity-loading-bar");
-      var progressBarFull = document.querySelector("#unity-progress-bar-full");
-      var fullscreenButton = document.querySelector("#unity-fullscreen-button");
-      var unityInstance = null;
-      
+    /* When the device rotates or the browser UI shows/hides, the window size changes; Unity resizes the WebGL canvas via matchWebGLToCanvasSize. */
+    function vertexFormOnViewportChanged() {
+      if (typeof window.dispatchEvent === "function") {
+        try { window.dispatchEvent(new Event("resize")); } catch (e) {}
+      }
+    }
+    window.addEventListener("resize", vertexFormOnViewportChanged);
+    window.addEventListener("orientationchange", function () {
+      vertexFormOnViewportChanged();
+      setTimeout(vertexFormOnViewportChanged, 300);
+    });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", vertexFormOnViewportChanged);
+    }
 
-      canvasContainer.style.width = "1280px";
-      canvasContainer.style.height = "720px";
-      loadingBar.style.display = "block";
+    var script = document.createElement("script");
+    script.src = loaderUrl;
+    script.onload = function () {
+      createUnityInstance(canvas, config, function (progress) {
+        progressBarFull.style.width = (100 * progress) + "%";
+      }).then(function (unityInstance) {
+        loadingBar.style.display = "none";
+        vertexFormSetupFullscreenButton(unityInstance);
 
-      var script = document.createElement("script");
-      script.src = loaderUrl;
-      script.onload = () => {
-        createUnityInstance(canvas, config, (progress) => {
-          progressBarFull.style.width = 100 * progress + "%";
-        }).then((instance) => {
-          unityInstance = instance;
-          loadingBar.style.display = "none";
-          if (fullscreenButton)
-          {
-            fullscreenButton.onclick = () => {
-              unityInstance.SetFullscreen(1);
-            };
+        var mobileStr = vertexFormIsMobileBrowser() ? "true" : "false";
+        var ua = navigator.userAgent || "";
+        var hints = "pointerCoarse=" + (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) +
+          ",maxTouchPoints=" + (navigator.maxTouchPoints || 0);
+        console.log("[VertexFormMobileDetect] mobile=" + mobileStr + " | " + hints + " | " + ua);
+        function sendMobileToUnity() {
+          try {
+            unityInstance.SendMessage("WebGLInputBridge", "LogBrowserUserAgent", ua);
+            unityInstance.SendMessage("WebGLInputBridge", "LogBrowserHints", hints);
+            unityInstance.SendMessage("WebGLInputBridge", "SetMobileControlsFromJs", mobileStr);
+          } catch (e) {
+            console.warn("[VertexFormMobileDetect] SendMessage failed — WebGLInputBridge / WebGLMobileControlBridge:", e);
           }
-        }).catch((message) => {
-          alert(message);
-        });
-      };
-      document.body.appendChild(script);
-
-      let enterARButton = document.getElementById('enterar');
-      let enterVRButton = document.getElementById('entervr');
-
-      document.addEventListener('onARSupportedCheck', function (event) {
-        enterARButton.disabled = !event.detail.supported;
-      }, false);
-      document.addEventListener('onVRSupportedCheck', function (event) {
-        enterVRButton.disabled = !event.detail.supported;
-      }, false);
-
-      enterARButton.addEventListener('click', function (event) {
-        unityInstance.Module.WebXR.toggleAR();
-      }, false);
-      enterVRButton.addEventListener('click', function (event) {
-        unityInstance.Module.WebXR.toggleVR();
-      }, false);
-    </script>
-  </body>
+        }
+        sendMobileToUnity();
+        setTimeout(sendMobileToUnity, 400);
+      }).catch(function (message) {
+        alert(message);
+      });
+    };
+    document.body.appendChild(script);
+  </script>
+</body>
 </html>
