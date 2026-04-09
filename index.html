@@ -147,20 +147,7 @@
       document.addEventListener("webkitfullscreenchange", vertexFormUpdateFullscreenButtonLabel);
     }
 
-    /* When the device rotates or the browser UI shows/hides, the window size changes; Unity resizes the WebGL canvas via matchWebGLToCanvasSize. */
-    function vertexFormOnViewportChanged() {
-      if (typeof window.dispatchEvent === "function") {
-        try { window.dispatchEvent(new Event("resize")); } catch (e) {}
-      }
-    }
-    window.addEventListener("resize", vertexFormOnViewportChanged);
-    window.addEventListener("orientationchange", function () {
-      vertexFormOnViewportChanged();
-      setTimeout(vertexFormOnViewportChanged, 300);
-    });
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener("resize", vertexFormOnViewportChanged);
-    }
+    /* Unity WebGL listens to the real window "resize" event for matchWebGLToCanvasSize — do not dispatch synthetic resize from a resize handler (infinite recursion). */
 
     var script = document.createElement("script");
     script.src = loaderUrl;
