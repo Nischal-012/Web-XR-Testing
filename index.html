@@ -90,6 +90,23 @@
   </div>
   <button id="vertexform-fullscreen-btn" type="button" aria-label="Toggle fullscreen">Fullscreen</button>
   <script>
+    /* Mobile browsers use a smaller JS stack than desktop. Unity + matchWebGLToCanvasSize + rapid window
+       resizes (URL bar, rotation) can overflow the stack. This does NOT fix WASM — it only avoids alert() spam.
+       Prefer fixing root cause (template flags below). */
+    (function () {
+      var ua = navigator.userAgent || "";
+      if (!/android|iphone|ipad|ipod|webos/i.test(ua)) return;
+      var orig = window.alert;
+      window.alert = function (msg) {
+        var s = msg != null ? String(msg) : "";
+        if (s.indexOf("Maximum call stack") !== -1 || s.indexOf("RangeError") !== -1) {
+          console.error("[VertexFormMobileDetect] (suppressed alert on mobile)", s);
+          return;
+        }
+        orig.call(window, msg);
+      };
+    })();
+
     function vertexFormIsMobileBrowser() {
       var ua = navigator.userAgent || navigator.vendor || window.opera || "";
       if (/android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/i.test(ua))
@@ -111,12 +128,14 @@
       companyName: "YourCompanyName",
       productName: "YourProductName",
       productVersion: "0.0.1",
-      /* true: internal WebGL resolution tracks the displayed canvas (sharp on retina). Setting false makes the game
-         render at a small fixed buffer and the browser stretches it → blocky / soft look on phones.
-         Stack overflow was caused by dispatching a *synthetic* "resize" from a resize handler — do not do that; native resize is fine. */
-      matchWebGLToCanvasSize: true,
+      /* Desktop: match canvas for sharp rendering. Mobile: false reduces resize↔internal-buffer churn that can
+         trigger RangeError (small stack on phones). Tradeoff: slightly softer upscaling on some devices. */
+      matchWebGLToCanvasSize: !vertexFormIsMobileBrowser(),
       autoSyncPersistentDataPath: true,
     };
+    if (vertexFormIsMobileBrowser()) {
+      config.devicePixelRatio = Math.min(typeof window.devicePixelRatio === "number" ? window.devicePixelRatio : 1, 2);
+    }
 
     var canvas = document.querySelector("#unity-canvas");
     var loadingBar = document.querySelector("#unity-loading-bar");
@@ -178,7 +197,8 @@
         /* Single batch after load; duplicate delayed calls could fight Unity init on slow phones. */
         sendMobileToUnity();
       }).catch(function (message) {
-        alert(message);
+        console.error("[VertexFormMobileDetect] createUnityInstance failed:", message);
+        if (!vertexFormIsMobileBrowser()) alert(message);
       });
     };
     document.body.appendChild(script);
