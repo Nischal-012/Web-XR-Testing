@@ -6,6 +6,7 @@
   <!-- width=device-width + safe-area; rotating the device reflows the layout; Unity uses matchWebGLToCanvasSize to match canvas to this size -->
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
   <title>YourProductName</title>
   <style>
@@ -78,6 +79,26 @@
       box-shadow: 0 2px 8px rgba(0,0,0,0.35);
     }
     #vertexform-fullscreen-btn:active { background: rgba(0,0,0,0.75); }
+    #vertexform-ios-fullscreen-hint {
+      display: none;
+      position: fixed;
+      left: 50%;
+      bottom: max(72px, calc(env(safe-area-inset-bottom) + 56px));
+      transform: translateX(-50%);
+      max-width: min(340px, calc(100vw - 24px));
+      z-index: 10002;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: rgba(20, 20, 24, 0.95);
+      color: #eee;
+      font-size: 14px;
+      line-height: 1.4;
+      font-family: system-ui, -apple-system, sans-serif;
+      border: 1px solid rgba(255,255,255,0.12);
+      box-shadow: 0 6px 24px rgba(0,0,0,0.45);
+      text-align: center;
+      -webkit-tap-highlight-color: transparent;
+    }
     /* Optional WebXR entry: shown on Quest / Wolvic-style browsers after Unity loads (user gesture for toggleVR). */
     #vertexform-vr-entry-overlay {
       display: none;
@@ -165,6 +186,7 @@
     </div>
   </div>
   <button id="vertexform-fullscreen-btn" type="button" aria-label="Toggle fullscreen">Fullscreen</button>
+  <div id="vertexform-ios-fullscreen-hint" role="status" aria-live="polite"></div>
   <script>
     /* Mobile browsers use a smaller JS stack than desktop. Unity + matchWebGLToCanvasSize + rapid window
        resizes (URL bar, rotation) can overflow the stack. This does NOT fix WASM — it only avoids alert() spam.
@@ -226,14 +248,55 @@
     }
 
     var canvas = document.querySelector("#unity-canvas");
+    var unityContainer = document.querySelector("#unity-container");
     var loadingBar = document.querySelector("#unity-loading-bar");
     var progressBarFull = document.querySelector("#unity-progress-bar-full");
     var fsBtn = document.querySelector("#vertexform-fullscreen-btn");
+    var iosFsHint = document.querySelector("#vertexform-ios-fullscreen-hint");
     var unityInstanceRef = null;
+
+    /* iPhone / iPad Safari: Unity SetFullscreen often no-ops; use Fullscreen API on #unity-container + webkit prefixes. */
+    function vertexFormIsIosLike() {
+      var ua = navigator.userAgent || "";
+      if (/iP(hone|ad|od)/i.test(ua)) return true;
+      if (navigator.platform === "MacIntel" && typeof navigator.maxTouchPoints === "number" && navigator.maxTouchPoints > 1)
+        return true;
+      return false;
+    }
+
+    function vertexFormFullscreenElement() {
+      return document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+    }
+
+    function vertexFormRequestFullscreenOnElement(el) {
+      if (!el) return Promise.reject(new Error("no element"));
+      var fn = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+      if (!fn) return Promise.reject(new Error("no requestFullscreen"));
+      var ret = fn.call(el);
+      return (ret && typeof ret.then === "function") ? ret : Promise.resolve();
+    }
+
+    function vertexFormExitFullscreenDocument() {
+      var d = document;
+      if (d.exitFullscreen) return d.exitFullscreen();
+      if (d.webkitExitFullscreen) return d.webkitExitFullscreen();
+      if (d.mozCancelFullScreen) return d.mozCancelFullScreen();
+      if (d.msExitFullscreen) return d.msExitFullscreen();
+    }
+
+    function vertexFormShowIosFullscreenHintToast() {
+      if (!iosFsHint) return;
+      iosFsHint.textContent = "Tip: In Safari, tap Share → Add to Home Screen, then open this app from your home screen for the most fullscreen layout (iOS limits in-tab fullscreen).";
+      iosFsHint.style.display = "block";
+      clearTimeout(vertexFormShowIosFullscreenHintToast._t);
+      vertexFormShowIosFullscreenHintToast._t = setTimeout(function () {
+        iosFsHint.style.display = "none";
+      }, 8000);
+    }
 
     function vertexFormUpdateFullscreenButtonLabel() {
       if (!fsBtn) return;
-      var el = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
+      var el = vertexFormFullscreenElement();
       fsBtn.textContent = el ? "Exit fullscreen" : "Fullscreen";
     }
 
@@ -302,21 +365,57 @@
     function vertexFormSetupFullscreenButton(unityInstance) {
       unityInstanceRef = unityInstance;
       if (!fsBtn) return;
+      /* PWA from home screen is already chromeless — hide control. */
+      if (window.navigator.standalone === true) {
+        fsBtn.style.display = "none";
+        return;
+      }
       fsBtn.style.display = "block";
       vertexFormUpdateFullscreenButtonLabel();
       fsBtn.onclick = function (ev) {
         ev.preventDefault();
         if (!unityInstanceRef || typeof unityInstanceRef.SetFullscreen !== "function") return;
-        var el = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
-        try {
-          unityInstanceRef.SetFullscreen(el ? 0 : 1);
-        } catch (err) {
-          console.warn("[VertexFormMobileDetect] SetFullscreen failed (try user gesture / iOS limits):", err);
+        var fsEl = vertexFormFullscreenElement();
+        var entering = !fsEl;
+        if (entering) {
+          if (vertexFormIsIosLike()) {
+            var target = unityContainer || canvas;
+            vertexFormRequestFullscreenOnElement(target).then(function () {
+              try { unityInstanceRef.SetFullscreen(1); } catch (e) { /* Unity may still sync canvas */ }
+            }).catch(function () {
+              try {
+                unityInstanceRef.SetFullscreen(1);
+              } catch (err) {
+                console.warn("[VertexFormMobileDetect] Fullscreen failed on iOS:", err);
+              }
+              setTimeout(function () {
+                if (!vertexFormFullscreenElement())
+                  vertexFormShowIosFullscreenHintToast();
+              }, 350);
+            });
+          } else {
+            try {
+              unityInstanceRef.SetFullscreen(1);
+            } catch (err) {
+              console.warn("[VertexFormMobileDetect] SetFullscreen failed:", err);
+            }
+          }
+        } else {
+          try {
+            vertexFormExitFullscreenDocument();
+          } catch (e1) { /* ignore */ }
+          try {
+            unityInstanceRef.SetFullscreen(0);
+          } catch (err) {
+            console.warn("[VertexFormMobileDetect] SetFullscreen(0) failed:", err);
+          }
         }
         setTimeout(vertexFormUpdateFullscreenButtonLabel, 100);
       };
       document.addEventListener("fullscreenchange", vertexFormUpdateFullscreenButtonLabel);
       document.addEventListener("webkitfullscreenchange", vertexFormUpdateFullscreenButtonLabel);
+      document.addEventListener("mozfullscreenchange", vertexFormUpdateFullscreenButtonLabel);
+      document.addEventListener("MSFullscreenChange", vertexFormUpdateFullscreenButtonLabel);
     }
 
     /* Unity WebGL listens to the real window "resize" event for matchWebGLToCanvasSize — do not dispatch synthetic resize from a resize handler (infinite recursion). */
