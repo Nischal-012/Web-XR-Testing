@@ -225,6 +225,16 @@
       return false;
     }
 
+    /* WebGPU platform: one of VrBrowser | DesktopBrowser | AndroidBrowser — sent to Unity via SetWebGpuRuntimeFromJs. */
+    function vertexFormResolveWebGpuBrowserKind() {
+      if (vertexFormLikelyVrShellBrowser())
+        return "VrBrowser";
+      var ua = (navigator.userAgent || "").toLowerCase();
+      if (/android/.test(ua))
+        return "AndroidBrowser";
+      return "DesktopBrowser";
+    }
+
     var buildUrl = "Build";
     var loaderUrl = buildUrl + "/WebGL.loader.js";
     var config = {
@@ -431,14 +441,14 @@
         vertexFormSetupVrEntryOverlay(unityInstance);
 
         var mobileStr = vertexFormIsMobileBrowser() ? "true" : "false";
-        var platformStr = vertexFormLikelyVrShellBrowser() ? "VR" : "Desktop";
+        var webGpuKindStr = vertexFormResolveWebGpuBrowserKind();
         var ua = navigator.userAgent || "";
         var hints = "pointerCoarse=" + (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) +
           ",maxTouchPoints=" + (navigator.maxTouchPoints || 0);
-        console.log("[VertexFormMobileDetect] platform=" + platformStr + " mobile=" + mobileStr + " | " + hints + " | " + ua);
+        console.log("[VertexFormMobileDetect] WebGPU browser kind=" + webGpuKindStr + " mobile=" + mobileStr + " | " + hints + " | " + ua);
         function sendMobileToUnity() {
           try {
-            unityInstance.SendMessage("WebGLInputBridge", "SetWebGlPlatformChoiceFromJs", platformStr);
+            unityInstance.SendMessage("WebGLInputBridge", "SetWebGpuRuntimeFromJs", webGpuKindStr);
             unityInstance.SendMessage("WebGLInputBridge", "LogBrowserUserAgent", ua);
             unityInstance.SendMessage("WebGLInputBridge", "LogBrowserHints", hints);
             unityInstance.SendMessage("WebGLInputBridge", "SetMobileControlsFromJs", mobileStr);
