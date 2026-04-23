@@ -9,6 +9,7 @@
     <type fullname="VertexFormCore.AttachTeleportArea" preserve="all" />
     <type fullname="VertexFormCore.XRGrabNetworkInteractable" preserve="all" />
     <type fullname="VertexFormCore.XRISceneSetup" preserve="all" />
+    <type fullname="VertexFormTMPInputKeyboardPolicy" preserve="all" />
     <type fullname="XRNetworkSyncEvent" preserve="all" />
   </assembly>
   <assembly fullname="CesiumRuntime, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
@@ -16,8 +17,6 @@
     <type fullname="CesiumForUnity.CesiumCameraManager" preserve="all" />
     <type fullname="CesiumForUnity.CesiumEllipsoid" preserve="all" />
     <type fullname="CesiumForUnity.CesiumGeoreference" preserve="all" />
-    <type fullname="CesiumForUnity.CesiumGlobeAnchor" preserve="all" />
-    <type fullname="CesiumForUnity.CesiumIonRasterOverlay" preserve="all" />
     <type fullname="CesiumForUnity.CesiumIonServer" preserve="all" />
     <type fullname="CesiumForUnity.CesiumPointCloudShading" preserve="nothing" serialized="true" />
   </assembly>
@@ -425,8 +424,6 @@
   </assembly>
   <assembly fullname="Unity.Mathematics">
     <type fullname="Unity.Mathematics.double3" preserve="nothing" serialized="true" />
-    <type fullname="Unity.Mathematics.double4" preserve="nothing" serialized="true" />
-    <type fullname="Unity.Mathematics.double4x4" preserve="nothing" serialized="true" />
   </assembly>
   <assembly fullname="UnityEngine.TextCoreFontEngineModule">
     <type fullname="UnityEngine.TextCore.FaceInfo" preserve="nothing" serialized="true" />
