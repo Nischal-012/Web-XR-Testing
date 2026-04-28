@@ -232,6 +232,10 @@
       var ua = (navigator.userAgent || "").toLowerCase();
       if (/android/.test(ua))
         return "AndroidBrowser";
+      /* iOS Safari UA contains "iphone/ipad/ipod" but not "android" — must be caught explicitly
+         or it falls through to DesktopBrowser, which overrides mobile controls to false. */
+      if (/iphone|ipad|ipod/.test(ua))
+        return "AndroidBrowser";
       return "DesktopBrowser";
     }
 
@@ -433,6 +437,28 @@
       document.addEventListener("MSFullscreenChange", vertexFormUpdateFullscreenButtonLabel);
     }
 
+    /* iOS Safari soft keyboard: focus() must happen synchronously inside a user-gesture handler.
+       Unity's canvas processes touch → async C# → JS, so by then iOS has left the gesture context.
+       We attach a touchstart listener that immediately focuses a hidden off-screen input, which primes
+       iOS to allow the keyboard. Unity's own WebGLInput mechanism then succeeds when it focuses its input. */
+    function vertexFormSetupIosKeyboardPrimer() {
+      if (!vertexFormIsIosLike()) return;
+      var primer = document.createElement("input");
+      primer.type = "text";
+      /* font-size >= 16px prevents iOS auto-zoom; opacity 0.01 keeps it off-screen but focusable */
+      primer.style.cssText = "position:fixed;left:-200vw;top:0;width:10px;height:10px;opacity:0.01;border:none;outline:none;pointer-events:none;font-size:16px;";
+      primer.setAttribute("autocomplete", "off");
+      primer.setAttribute("autocorrect", "off");
+      primer.setAttribute("autocapitalize", "off");
+      primer.setAttribute("spellcheck", "false");
+      primer.setAttribute("tabindex", "-1");
+      document.body.appendChild(primer);
+      canvas.addEventListener("touchstart", function () {
+        /* Synchronous focus inside touchstart — grants iOS keyboard permission for Unity's subsequent focus() */
+        primer.focus();
+      }, { passive: true });
+    }
+
     /* Unity WebGL listens to the real window "resize" event for matchWebGLToCanvasSize — do not dispatch synthetic resize from a resize handler (infinite recursion). */
 
     var script = document.createElement("script");
@@ -444,6 +470,7 @@
         loadingBar.style.display = "none";
         vertexFormSetupFullscreenButton(unityInstance);
         vertexFormSetupVrEntryOverlay(unityInstance);
+        vertexFormSetupIosKeyboardPrimer();
 
         var mobileStr = vertexFormIsMobileBrowser() ? "true" : "false";
         var webGpuKindStr = vertexFormResolveWebGpuBrowserKind();
