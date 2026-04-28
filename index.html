@@ -217,7 +217,7 @@
     }
 
     /* Quest / Wolvic / Pico shell browsers: set Unity Project Data platform to VR so Fusion & UI match WebXR shells.
-       Not the same as “mobile touch” (PC Chrome can be mobile=false but still support WebXR). */
+       Not the same as "mobile touch" (PC Chrome can be mobile=false but still support WebXR). */
     function vertexFormLikelyVrShellBrowser() {
       var ua = (navigator.userAgent || "").toLowerCase();
       if (/oculusbrowser|oculus|quest\/|meta quest|metabrowser|pico|wolvic|svrbrowser|openxr-mobile|htc|vive/i.test(ua))
@@ -437,39 +437,6 @@
       document.addEventListener("MSFullscreenChange", vertexFormUpdateFullscreenButtonLabel);
     }
 
-    /* iOS Safari soft keyboard: focus() must happen synchronously inside a user-gesture handler.
-       Unity's WASM processes the touch asynchronously (~100-300ms later), so by the time Unity
-       calls focus() on its own WebGLInput overlay input, iOS's gesture window has usually expired.
-       Fix: focus the primer synchronously in touchstart (keeping the gesture context open), then
-       hold it until Unity's overlay input steals focus naturally via its own focus() call — at that
-       point document.activeElement is no longer the primer, so the cleanup timeout is a no-op.
-       For button taps (no Unity overlay input appears), the timeout fires and blurs the primer. */
-    function vertexFormSetupIosKeyboardPrimer() {
-      if (!vertexFormIsIosLike()) return;
-      var primer = document.createElement("input");
-      primer.type = "text";
-      /* font-size >= 16px prevents iOS auto-zoom */
-      primer.style.cssText = "position:fixed;left:-200vw;top:0;width:10px;height:10px;opacity:0;border:none;outline:none;pointer-events:none;font-size:16px;";
-      primer.setAttribute("autocomplete", "off");
-      primer.setAttribute("autocorrect", "off");
-      primer.setAttribute("autocapitalize", "off");
-      primer.setAttribute("spellcheck", "false");
-      primer.setAttribute("tabindex", "-1");
-      document.body.appendChild(primer);
-      var _primerBlurTimer = null;
-      canvas.addEventListener("touchstart", function () {
-        clearTimeout(_primerBlurTimer);
-        /* Hold focus so the iOS gesture context stays valid while Unity's WASM processes the tap.
-           Unity's WebGLInput will call focus() on its own overlay input, auto-blurring the primer.
-           If that happens, document.activeElement is no longer primer and the timeout is a no-op.
-           If no overlay appears (button tap), the timeout dismisses the keyboard after 400ms. */
-        primer.focus();
-        _primerBlurTimer = setTimeout(function () {
-          if (document.activeElement === primer) primer.blur();
-        }, 400);
-      }, { passive: true });
-    }
-
     /* Unity WebGL listens to the real window "resize" event for matchWebGLToCanvasSize — do not dispatch synthetic resize from a resize handler (infinite recursion). */
 
     var script = document.createElement("script");
@@ -481,7 +448,6 @@
         loadingBar.style.display = "none";
         vertexFormSetupFullscreenButton(unityInstance);
         vertexFormSetupVrEntryOverlay(unityInstance);
-        vertexFormSetupIosKeyboardPrimer();
 
         var mobileStr = vertexFormIsMobileBrowser() ? "true" : "false";
         var webGpuKindStr = vertexFormResolveWebGpuBrowserKind();
