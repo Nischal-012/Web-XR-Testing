@@ -438,12 +438,12 @@
     }
 
     /* iOS Safari soft keyboard: focus() must happen synchronously inside a user-gesture handler.
-       Unity's canvas processes touch → async C# → JS, so by then iOS has left the gesture context.
-       Fix: focus a hidden primer input synchronously on touchstart to register the gesture with iOS,
-       then IMMEDIATELY blur it so the primer never owns keystrokes and never causes the keyboard to
-       linger on non-input taps (buttons, etc.). iOS caches the gesture-permission for ~300ms, so
-       Unity's own overlay input focus() call (arriving ~20-50ms later via WebGLInput) still lands
-       within that window and iOS shows the keyboard for Unity's input instead of the primer. */
+       Unity's WASM processes the touch asynchronously (~100-300ms later), so by the time Unity
+       calls focus() on its own WebGLInput overlay input, iOS's gesture window has usually expired.
+       Fix: focus the primer synchronously in touchstart (keeping the gesture context open), then
+       hold it until Unity's overlay input steals focus naturally via its own focus() call — at that
+       point document.activeElement is no longer the primer, so the cleanup timeout is a no-op.
+       For button taps (no Unity overlay input appears), the timeout fires and blurs the primer. */
     function vertexFormSetupIosKeyboardPrimer() {
       if (!vertexFormIsIosLike()) return;
       var primer = document.createElement("input");
@@ -456,11 +456,17 @@
       primer.setAttribute("spellcheck", "false");
       primer.setAttribute("tabindex", "-1");
       document.body.appendChild(primer);
+      var _primerBlurTimer = null;
       canvas.addEventListener("touchstart", function () {
-        /* focus() registers the iOS gesture context; blur() immediately releases ownership so the
-           primer never captures keystrokes and the keyboard doesn't stay open on button taps. */
+        clearTimeout(_primerBlurTimer);
+        /* Hold focus so the iOS gesture context stays valid while Unity's WASM processes the tap.
+           Unity's WebGLInput will call focus() on its own overlay input, auto-blurring the primer.
+           If that happens, document.activeElement is no longer primer and the timeout is a no-op.
+           If no overlay appears (button tap), the timeout dismisses the keyboard after 400ms. */
         primer.focus();
-        primer.blur();
+        _primerBlurTimer = setTimeout(function () {
+          if (document.activeElement === primer) primer.blur();
+        }, 400);
       }, { passive: true });
     }
 
