@@ -439,14 +439,17 @@
 
     /* iOS Safari soft keyboard: focus() must happen synchronously inside a user-gesture handler.
        Unity's canvas processes touch → async C# → JS, so by then iOS has left the gesture context.
-       We attach a touchstart listener that immediately focuses a hidden off-screen input, which primes
-       iOS to allow the keyboard. Unity's own WebGLInput mechanism then succeeds when it focuses its input. */
+       Fix: focus a hidden primer input synchronously on touchstart to register the gesture with iOS,
+       then IMMEDIATELY blur it so the primer never owns keystrokes and never causes the keyboard to
+       linger on non-input taps (buttons, etc.). iOS caches the gesture-permission for ~300ms, so
+       Unity's own overlay input focus() call (arriving ~20-50ms later via WebGLInput) still lands
+       within that window and iOS shows the keyboard for Unity's input instead of the primer. */
     function vertexFormSetupIosKeyboardPrimer() {
       if (!vertexFormIsIosLike()) return;
       var primer = document.createElement("input");
       primer.type = "text";
-      /* font-size >= 16px prevents iOS auto-zoom; opacity 0.01 keeps it off-screen but focusable */
-      primer.style.cssText = "position:fixed;left:-200vw;top:0;width:10px;height:10px;opacity:0.01;border:none;outline:none;pointer-events:none;font-size:16px;";
+      /* font-size >= 16px prevents iOS auto-zoom */
+      primer.style.cssText = "position:fixed;left:-200vw;top:0;width:10px;height:10px;opacity:0;border:none;outline:none;pointer-events:none;font-size:16px;";
       primer.setAttribute("autocomplete", "off");
       primer.setAttribute("autocorrect", "off");
       primer.setAttribute("autocapitalize", "off");
@@ -454,8 +457,10 @@
       primer.setAttribute("tabindex", "-1");
       document.body.appendChild(primer);
       canvas.addEventListener("touchstart", function () {
-        /* Synchronous focus inside touchstart — grants iOS keyboard permission for Unity's subsequent focus() */
+        /* focus() registers the iOS gesture context; blur() immediately releases ownership so the
+           primer never captures keystrokes and the keyboard doesn't stay open on button taps. */
         primer.focus();
+        primer.blur();
       }, { passive: true });
     }
 
