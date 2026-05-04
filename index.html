@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
-  <title>YourProductName</title>
+  <title>VertexForm</title>
   <style>
     * { box-sizing: border-box; }
     html {
@@ -181,7 +181,7 @@
   <div id="unity-container">
     <canvas id="unity-canvas" tabindex="-1"></canvas>
     <div id="unity-loading-bar">
-      <div>Loading YourProductName...</div>
+      <div>Loading VertexForm...</div>
       <div id="unity-progress-bar-empty"><div id="unity-progress-bar-full"></div></div>
     </div>
   </div>
@@ -242,13 +242,13 @@
     var buildUrl = "Build";
     var loaderUrl = buildUrl + "/WebGL.loader.js";
     var config = {
-      dataUrl: buildUrl + "/WebGL.data",
-      frameworkUrl: buildUrl + "/WebGL.framework.js",
-      codeUrl: buildUrl + "/WebGL.wasm",
+      dataUrl: buildUrl + "/WebGL.data.unityweb",
+      frameworkUrl: buildUrl + "/WebGL.framework.js.unityweb",
+      codeUrl: buildUrl + "/WebGL.wasm.unityweb",
       streamingAssetsUrl: "StreamingAssets",
-      companyName: "YourCompanyName",
-      productName: "YourProductName",
-      productVersion: "0.0.1",
+      companyName: "Vertex Form 3D",
+      productName: "VertexForm",
+      productVersion: "1.2.0",
       /* matchWebGLToCanvasSize true fixes blocky upscaling. It can contribute to resize-related JS/WASM stack overflow
          on some mobile browsers (dynamic URL bar, rotation) — the old "false on mobile" avoided that at the cost of
          awful visuals. Mitigations: cap devicePixelRatio below, Unity updates, and avoid extra resize listeners. */
@@ -381,6 +381,11 @@
       if (!fsBtn) return;
       /* PWA from home screen is already chromeless — hide control. */
       if (window.navigator.standalone === true) {
+        fsBtn.style.display = "none";
+        return;
+      }
+      /* Flat mobile browsers: true document fullscreen + Unity WebGL canvas often blocks TMP soft keyboard (Unity issue tracker). Layout is already edge-to-edge — skip the fullscreen control. */
+      if (vertexFormIsMobileBrowser() && !vertexFormLikelyVrShellBrowser()) {
         fsBtn.style.display = "none";
         return;
       }
